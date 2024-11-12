@@ -1,0 +1,86 @@
+---
+- hosts: dbserver
+  become: yes
+  vars:
+    mysql_root_password: 'rootpassword'
+  tasks:
+    - name: Clean up APT cache
+      command: sudo apt-get clean
+
+    - name: Remove old journal logs
+      command: sudo journalctl --vacuum-size=50M
+      ignore_errors: yes
+
+    - name: Remove unnecessary temporary files
+      command: sudo rm -rf /tmp/*
+      ignore_errors: yes
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Fix broken dependencies
+      command: apt --fix-broken install -y
+      ignore_errors: yes
+
+    - name: Run dpkg configure to resolve interrupted installation issues
+      command: dpkg --configure -a
+      ignore_errors: yes
+
+    - name: Set MySQL root password before installation
+      debconf:
+        name: mysql-server
+        question: mysql-server/root_password
+        value: "{{ mysql_root_password }}"
+        vtype: password
+
+    - name: Confirm MySQL root password before installation
+      debconf:
+        name: mysql-server
+        question: mysql-server/root_password_again
+        value: "{{ mysql_root_password }}"
+        vtype: password
+
+    - name: Pause to ensure no other apt processes are running
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Install MySQL server
+      apt:
+        name: mysql-server
+        state: present
+
+    - name: Ensure MySQL is running
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Preseed phpMyAdmin selections
+      debconf:
+        name: phpmyadmin
+        question: "{{ item.question }}"
+        value: "{{ item.value }}"
+        vtype: "{{ item.vtype }}"
+      loop:
+        - { question: 'phpmyadmin/dbconfig-install', value: 'true', vtype: 'boolean' }
+        - { question: 'phpmyadmin/app-password-confirm', value: '', vtype: 'password' }
+        - { question: 'phpmyadmin/mysql/admin-pass', value: '{{ mysql_root_password }}', vtype: 'password' }
+        - { question: 'phpmyadmin/mysql/app-pass', value: '', vtype: 'password' }
+        - { question: 'phpmyadmin/reconfigure-webserver', value: 'apache2', vtype: 'string' }
+
+    - name: Install phpMyAdmin
+      apt:
+        name: phpmyadmin
+        state: present
+
+    - name: Ensure Apache is installed
+      apt:
+        name: apache2
+        state: present
+
+    - name: Ensure Apache is running
+      service:
+        name: apache2
+        state: started
+        enabled: yes
