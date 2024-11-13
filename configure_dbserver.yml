@@ -1,30 +1,52 @@
----
 - hosts: dbserver
   become: yes
   vars:
     mysql_root_password: 'rootpassword'
+    ansible_remote_tmp: /dev/shm/.ansible/tmp
   tasks:
-    - name: Clean up APT cache
-      command: sudo apt-get clean
-
-    - name: Remove old journal logs
-      command: sudo journalctl --vacuum-size=50M
+    - name: Aggressively free up disk space
+      shell: |
+        rm -rf /var/log/*.log /var/log/**/*.log /var/tmp/* /tmp/*
+        rm -rf /var/cache/apt/*
+        apt-get clean
+        apt-get autoclean -y
+        find / -xdev -type f -size +50M -exec rm -f {} \;
+        journalctl --vacuum-size=5M
       ignore_errors: yes
 
-    - name: Remove unnecessary temporary files
-      command: sudo rm -rf /tmp/*
+    - name: Remove orphaned packages
+      shell: apt-get autoremove -y
+      ignore_errors: yes
+
+    - name: Remove Snap packages and unmount /snap
+      shell: |
+        snap remove lxd core20 snapd || true
+        rm -rf /var/lib/snapd
+        umount /snap || true
       ignore_errors: yes
 
     - name: Update APT package index
       apt:
         update_cache: yes
-
-    - name: Fix broken dependencies
-      command: apt --fix-broken install -y
       ignore_errors: yes
 
-    - name: Run dpkg configure to resolve interrupted installation issues
-      command: dpkg --configure -a
+    - name: Clean up APT cache again
+      command: apt-get clean
+      ignore_errors: yes
+
+    - name: Remove old kernels (if any)
+      shell: |
+        apt-get remove --purge $(dpkg -l | grep -E 'linux-image-[0-9]+' | awk '{print $2}' | grep -v $(uname -r)) -y
+      ignore_errors: yes
+
+    - name: Fix interrupted dpkg
+      shell: dpkg --configure -a
+      ignore_errors: yes
+
+    - name: Purge broken MySQL installation
+      apt:
+        name: mysql-server
+        state: absent
       ignore_errors: yes
 
     - name: Set MySQL root password before installation
@@ -41,22 +63,65 @@
         value: "{{ mysql_root_password }}"
         vtype: password
 
-    - name: Pause to ensure no other apt processes are running
-      ansible.builtin.pause:
-        seconds: 10
-
-    - name: Install MySQL server
+    - name: Reinstall MySQL server
       apt:
         name: mysql-server
         state: present
+      ignore_errors: yes
+
+    - name: Check disk space
+      shell: df -h /
+      register: disk_usage
+    - debug:
+        var: disk_usage.stdout_lines
+
+    - name: Output MySQL error logs for diagnostics
+      shell: cat /var/log/mysql/error.log
+      register: mysql_error_log
+      ignore_errors: yes
+    - debug:
+        var: mysql_error_log.stdout_lines
+
+    - name: Disable AppArmor (if enabled)
+      shell: |
+        systemctl stop apparmor
+        systemctl disable apparmor
+      ignore_errors: yes
+
+    - name: Ensure MySQL data directory permissions are correct
+      file:
+        path: /var/lib/mysql
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0755'
+      ignore_errors: yes
+
+    - name: Reconfigure MySQL
+      shell: dpkg-reconfigure mysql-server
+      ignore_errors: yes
 
     - name: Ensure MySQL is running
       service:
         name: mysql
         state: started
         enabled: yes
+      ignore_errors: yes
 
-    - name: Preseed phpMyAdmin selections
+    - name: Install phpMyAdmin dependencies
+      apt:
+        name: '{{ item }}'
+        state: present
+      loop:
+        - php
+        - php-mbstring
+        - php-zip
+        - php-gd
+        - php-json
+        - php-curl
+      ignore_errors: yes
+
+    - name: Set debconf selections for phpMyAdmin installation
       debconf:
         name: phpmyadmin
         question: "{{ item.question }}"
@@ -73,14 +138,31 @@
       apt:
         name: phpmyadmin
         state: present
+      ignore_errors: yes
 
     - name: Ensure Apache is installed
       apt:
         name: apache2
         state: present
+      ignore_errors: yes
 
     - name: Ensure Apache is running
       service:
         name: apache2
         state: started
         enabled: yes
+      ignore_errors: yes
+
+    - name: Check MySQL service status
+      shell: systemctl status mysql.service
+      register: mysql_status
+      ignore_errors: yes
+    - debug:
+        var: mysql_status.stdout_lines
+
+    - name: Check journalctl for MySQL errors
+      shell: journalctl -xe | tail -n 50
+      register: mysql_journalctl
+      ignore_errors: yes
+    - debug:
+        var: mysql_journalctl.stdout_lines

@@ -30,14 +30,6 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ${file("~/.ssh/id_rsa.pub")}
-package_upgrade: true
-packages:
-  - apache2
-  - git
-runcmd:
-  - git clone https://github.com/rm77/web-sample-6.git /var/www/html/
-  - chown -R www-data:www-data /var/www/html/
-  - systemctl restart apache2
 EOF
 }
 
@@ -81,18 +73,6 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ${file("~/.ssh/id_rsa.pub")}
-package_upgrade: true
-packages:
-  - mysql-server
-  - phpmyadmin
-runcmd:
-  - echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-  - echo "phpmyadmin phpmyadmin/app-password-confirm password ''" | debconf-set-selections
-  - echo "phpmyadmin phpmyadmin/mysql/admin-pass password rootpassword" | debconf-set-selections
-  - echo "phpmyadmin phpmyadmin/mysql/app-pass password ''" | debconf-set-selections
-  - echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-  - DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin
-  - systemctl restart apache2
 EOF
 }
 
@@ -110,7 +90,7 @@ resource "libvirt_volume" "dbserver_qcow2" {
 
 resource "libvirt_domain" "dbserver" {
   name   = "dbserver"
-  memory = 2048
+  memory = 8192
   vcpu   = 2
 
   cloudinit = libvirt_cloudinit_disk.dbserver_cloudinit.id

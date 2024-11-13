@@ -1,6 +1,8 @@
 ---
 - hosts: webserver
   become: yes
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
     - name: Update APT package index
       apt:
@@ -15,6 +17,19 @@
 
     - name: Mark /var/www/html as a safe directory for Git
       command: git config --global --add safe.directory /var/www/html
+
+    - name: Clear /var/www/html directory
+      file:
+        path: /var/www/html
+        state: absent
+
+    - name: Recreate /var/www/html directory
+      file:
+        path: /var/www/html
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
 
     - name: Clone website repository
       git:
