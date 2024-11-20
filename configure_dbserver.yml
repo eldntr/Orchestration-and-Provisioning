@@ -2,22 +2,10 @@
   become: yes
   vars:
     mysql_root_password: 'rootpassword'
+    phpmyadmin_user: 'phpmyadmin_user'
+    phpmyadmin_password: 'phpmyadmin_password'
     ansible_remote_tmp: /dev/shm/.ansible/tmp
   tasks:
-    - name: Aggressively free up disk space
-      shell: |
-        rm -rf /var/log/*.log /var/log/**/*.log /var/tmp/* /tmp/*
-        rm -rf /var/cache/apt/*
-        apt-get clean
-        apt-get autoclean -y
-        find / -xdev -type f -size +50M -exec rm -f {} \;
-        journalctl --vacuum-size=5M
-      ignore_errors: yes
-
-    - name: Remove orphaned packages
-      shell: apt-get autoremove -y
-      ignore_errors: yes
-
     - name: Remove Snap packages and unmount /snap
       shell: |
         snap remove lxd core20 snapd || true
@@ -30,13 +18,8 @@
         update_cache: yes
       ignore_errors: yes
 
-    - name: Clean up APT cache again
+    - name: Clean up APT cache
       command: apt-get clean
-      ignore_errors: yes
-
-    - name: Remove old kernels (if any)
-      shell: |
-        apt-get remove --purge $(dpkg -l | grep -E 'linux-image-[0-9]+' | awk '{print $2}' | grep -v $(uname -r)) -y
       ignore_errors: yes
 
     - name: Fix interrupted dpkg
@@ -69,18 +52,13 @@
         state: present
       ignore_errors: yes
 
-    - name: Check disk space
-      shell: df -h /
-      register: disk_usage
-    - debug:
-        var: disk_usage.stdout_lines
-
-    - name: Output MySQL error logs for diagnostics
-      shell: cat /var/log/mysql/error.log
-      register: mysql_error_log
+    - name: Create MySQL user for phpMyAdmin
+      shell: |
+        mysql -u root -p{{ mysql_root_password }} -e "\
+        CREATE USER IF NOT EXISTS '{{ phpmyadmin_user }}'@'localhost' IDENTIFIED BY '{{ phpmyadmin_password }}'; \
+        GRANT ALL PRIVILEGES ON *.* TO '{{ phpmyadmin_user }}'@'localhost' WITH GRANT OPTION; \
+        FLUSH PRIVILEGES;"
       ignore_errors: yes
-    - debug:
-        var: mysql_error_log.stdout_lines
 
     - name: Disable AppArmor (if enabled)
       shell: |
@@ -131,7 +109,7 @@
         - { question: 'phpmyadmin/dbconfig-install', value: 'true', vtype: 'boolean' }
         - { question: 'phpmyadmin/app-password-confirm', value: '', vtype: 'password' }
         - { question: 'phpmyadmin/mysql/admin-pass', value: '{{ mysql_root_password }}', vtype: 'password' }
-        - { question: 'phpmyadmin/mysql/app-pass', value: '', vtype: 'password' }
+        - { question: 'phpmyadmin/mysql/app-pass', value: '{{ phpmyadmin_password }}', vtype: 'password' }
         - { question: 'phpmyadmin/reconfigure-webserver', value: 'apache2', vtype: 'string' }
 
     - name: Install phpMyAdmin
