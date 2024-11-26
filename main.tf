@@ -12,11 +12,23 @@ provider "libvirt" {
 }
 
 # Define Ubuntu Cloud Image
+resource "null_resource" "download_ubuntu_image" {
+  provisioner "local-exec" {
+    command = <<EOT
+      if [ ! -f /var/lib/libvirt/images/focal-server-cloudimg-amd64.img ]; then
+        wget -O /var/lib/libvirt/images/focal-server-cloudimg-amd64.img https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img;
+      fi
+    EOT
+  }
+}
+
 resource "libvirt_volume" "ubuntu_image" {
   name   = "ubuntu.qcow2"
   pool   = "default"
   source = "/var/lib/libvirt/images/focal-server-cloudimg-amd64.img"
   format = "qcow2"
+
+  depends_on = [null_resource.download_ubuntu_image]
 }
 
 # Webserver VM

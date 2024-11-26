@@ -5,13 +5,8 @@
     phpmyadmin_user: 'phpmyadmin_user'
     phpmyadmin_password: 'phpmyadmin_password'
     ansible_remote_tmp: /dev/shm/.ansible/tmp
-    ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"  # Disable strict host key checking
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
-    - name: Remove old host key from known_hosts
-      command: ssh-keygen -f /home/debian/.ssh/known_hosts -R "{{ ansible_host }}" # Change the path to the known_hosts file 
-      delegate_to: localhost
-      when: ansible_host is defined
-
     - name: Update APT package index
       apt:
         update_cache: yes
