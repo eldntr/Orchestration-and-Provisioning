@@ -25,18 +25,6 @@ echo "Removing cloud-init ISO files..."
 sudo rm -f /var/lib/libvirt/images/webserver-cloudinit.iso
 sudo rm -f /var/lib/libvirt/images/dbserver-cloudinit.iso
 
-# Resize disk for dbserver before provisioning
-echo "Resizing dbserver disk..."
-if [ -f /var/lib/libvirt/images/dbserver.qcow2 ]; then
-    sudo qemu-img resize /var/lib/libvirt/images/dbserver.qcow2 +20G
-else
-    echo "dbserver.qcow2 does not exist, skipping resize."
-fi
-
-# Optionally remove base Ubuntu image for a fresh download each time
-# Uncomment if needed
-# sudo rm -f /var/lib/libvirt/images/focal-server-cloudimg-amd64.img
-
 # Ensure AppArmor is disabled
 echo "Checking and disabling AppArmor if active..."
 if sudo systemctl is-active --quiet apparmor; then

@@ -85,6 +85,7 @@ resource "libvirt_volume" "dbserver_qcow2" {
   name           = "dbserver.qcow2"
   base_volume_id = libvirt_volume.ubuntu_image.id
   pool           = "default"
+  size           = 10 * 1024 * 1024 * 1024  # 10GB in bytes
 }
 
 # Resize the disk after it is created
@@ -125,7 +126,6 @@ resource "libvirt_domain" "dbserver" {
   depends_on = [libvirt_cloudinit_disk.dbserver_cloudinit]
 }
 
-
 # Outputs
 output "webserver_ip" {
   value = libvirt_domain.webserver.network_interface.0.addresses[0]
@@ -133,4 +133,19 @@ output "webserver_ip" {
 
 output "dbserver_ip" {
   value = libvirt_domain.dbserver.network_interface.0.addresses[0]
+}
+
+resource "local_file" "ansible_inventory" {
+  filename = "${path.module}/inventory.ini"
+
+  content = <<EOF
+[local]
+localhost ansible_connection=local
+
+[webserver]
+webserver ansible_host=${libvirt_domain.webserver.network_interface.0.addresses[0]} ansible_user=ansible
+
+[dbserver]
+dbserver ansible_host=${libvirt_domain.dbserver.network_interface.0.addresses[0]} ansible_user=ansible
+EOF
 }

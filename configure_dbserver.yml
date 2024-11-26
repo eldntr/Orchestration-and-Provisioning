@@ -5,32 +5,27 @@
     phpmyadmin_user: 'phpmyadmin_user'
     phpmyadmin_password: 'phpmyadmin_password'
     ansible_remote_tmp: /dev/shm/.ansible/tmp
+    ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"  # Disable strict host key checking
   tasks:
-    - name: Remove Snap packages and unmount /snap
-      shell: |
-        snap remove lxd core20 snapd || true
-        rm -rf /var/lib/snapd
-        umount /snap || true
-      ignore_errors: yes
+    - name: Remove old host key from known_hosts
+      command: ssh-keygen -f /home/debian/.ssh/known_hosts -R "{{ ansible_host }}" # Change the path to the known_hosts file 
+      delegate_to: localhost
+      when: ansible_host is defined
 
     - name: Update APT package index
       apt:
         update_cache: yes
-      ignore_errors: yes
 
     - name: Clean up APT cache
       command: apt-get clean
-      ignore_errors: yes
 
     - name: Fix interrupted dpkg
       shell: dpkg --configure -a
-      ignore_errors: yes
 
     - name: Purge broken MySQL installation
       apt:
         name: mysql-server
         state: absent
-      ignore_errors: yes
 
     - name: Set MySQL root password before installation
       debconf:
@@ -46,11 +41,10 @@
         value: "{{ mysql_root_password }}"
         vtype: password
 
-    - name: Reinstall MySQL server
+    - name: Install MySQL server
       apt:
         name: mysql-server
         state: present
-      ignore_errors: yes
 
     - name: Create MySQL user for phpMyAdmin
       shell: |
@@ -58,33 +52,12 @@
         CREATE USER IF NOT EXISTS '{{ phpmyadmin_user }}'@'localhost' IDENTIFIED BY '{{ phpmyadmin_password }}'; \
         GRANT ALL PRIVILEGES ON *.* TO '{{ phpmyadmin_user }}'@'localhost' WITH GRANT OPTION; \
         FLUSH PRIVILEGES;"
-      ignore_errors: yes
-
-    - name: Disable AppArmor (if enabled)
-      shell: |
-        systemctl stop apparmor
-        systemctl disable apparmor
-      ignore_errors: yes
-
-    - name: Ensure MySQL data directory permissions are correct
-      file:
-        path: /var/lib/mysql
-        state: directory
-        owner: mysql
-        group: mysql
-        mode: '0755'
-      ignore_errors: yes
-
-    - name: Reconfigure MySQL
-      shell: dpkg-reconfigure mysql-server
-      ignore_errors: yes
 
     - name: Ensure MySQL is running
       service:
         name: mysql
         state: started
         enabled: yes
-      ignore_errors: yes
 
     - name: Install phpMyAdmin dependencies
       apt:
@@ -97,7 +70,6 @@
         - php-gd
         - php-json
         - php-curl
-      ignore_errors: yes
 
     - name: Set debconf selections for phpMyAdmin installation
       debconf:
@@ -116,31 +88,14 @@
       apt:
         name: phpmyadmin
         state: present
-      ignore_errors: yes
 
     - name: Ensure Apache is installed
       apt:
         name: apache2
         state: present
-      ignore_errors: yes
 
     - name: Ensure Apache is running
       service:
         name: apache2
         state: started
         enabled: yes
-      ignore_errors: yes
-
-    - name: Check MySQL service status
-      shell: systemctl status mysql.service
-      register: mysql_status
-      ignore_errors: yes
-    - debug:
-        var: mysql_status.stdout_lines
-
-    - name: Check journalctl for MySQL errors
-      shell: journalctl -xe | tail -n 50
-      register: mysql_journalctl
-      ignore_errors: yes
-    - debug:
-        var: mysql_journalctl.stdout_lines
