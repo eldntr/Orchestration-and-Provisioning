@@ -22,9 +22,11 @@ data "template_file" "dbserver_user_data" {
         ssh_authorized_keys:
           - ${file("~/.ssh/id_rsa.pub")}
     runcmd:
-      - apt-get update && apt-get install -y cloud-guest-utils
+      - apt-get update && apt-get install -y cloud-guest-utils openssh-server
       - growpart /dev/vda 1
       - resize2fs /dev/vda1
+      - systemctl enable ssh
+      - systemctl start ssh
     EOF
 }
 

@@ -21,6 +21,10 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ${file("~/.ssh/id_rsa.pub")}
+runcmd:
+  - apt-get update && apt-get install -y openssh-server
+  - systemctl enable ssh
+  - systemctl start ssh
 EOF
 }
 
