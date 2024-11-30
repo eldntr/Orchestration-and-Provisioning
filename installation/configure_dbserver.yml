@@ -41,12 +41,39 @@
         name: mysql-server
         state: present
 
+    - name: Allow MySQL connections from other computers
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+        state: present
+
+    - name: Restart MySQL to apply changes
+      service:
+        name: mysql
+        state: restarted
+
     - name: Create MySQL user for phpMyAdmin
       shell: |
         mysql -u root -p{{ mysql_root_password }} -e "\
         CREATE USER IF NOT EXISTS '{{ phpmyadmin_user }}'@'localhost' IDENTIFIED BY '{{ phpmyadmin_password }}'; \
         GRANT ALL PRIVILEGES ON *.* TO '{{ phpmyadmin_user }}'@'localhost' WITH GRANT OPTION; \
         FLUSH PRIVILEGES;"
+
+    - name: Install Python MySQL module
+      apt:
+        name: python3-pymysql
+        state: present
+
+    - name: Grant remote access to root user
+      mysql_user:
+        name: root
+        host: "%"
+        password: "{{ mysql_root_password }}"
+        priv: "*.*:ALL"
+        state: present
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
 
     - name: Ensure MySQL is running
       service:
