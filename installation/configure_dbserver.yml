@@ -16,12 +16,7 @@
 
     - name: Fix interrupted dpkg
       shell: dpkg --configure -a
-
-    - name: Purge broken MySQL installation
-      apt:
-        name: mysql-server
-        state: absent
-
+      
     - name: Set MySQL root password before installation
       debconf:
         name: mysql-server
