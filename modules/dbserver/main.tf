@@ -55,7 +55,7 @@ resource "libvirt_cloudinit_disk" "dbserver_cloudinit" {
 
 resource "libvirt_domain" "dbserver" {
   name   = "dbserver"
-  memory = 8192
+  memory = 4096
   vcpu   = 2
 
   cloudinit = libvirt_cloudinit_disk.dbserver_cloudinit.id

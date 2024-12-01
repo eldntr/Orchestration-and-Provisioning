@@ -11,12 +11,9 @@
       apt:
         update_cache: yes
 
-    - name: Clean up APT cache
-      command: apt-get clean
-
     - name: Fix interrupted dpkg
       shell: dpkg --configure -a
-      
+
     - name: Set MySQL root password before installation
       debconf:
         name: mysql-server

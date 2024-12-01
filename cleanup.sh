@@ -72,7 +72,3 @@ if [ "$SELINUX_DISABLED" -eq 1 ]; then
     echo "Re-enabling SELinux..."
     sudo setenforce 1
 fi
-
-# Final validation of dbserver disk size
-echo "Validating dbserver disk resize..."
-sudo qemu-img info /var/lib/libvirt/images/dbserver.qcow2
