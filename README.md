@@ -1,0 +1,1 @@
+Jalankan `run.sh`, pastikan instalasi yang dibutuhkan untuk menjalankan opentofu, ansible, qemu dan libvirt serta library semacamnya terpenuhi. Jika terjadi error, mungkin terdapat kesalahan pada path atau permission, terkait path, mungkin bisa dirubah untuk OS dikarenakan saya menggunakan debian 
